@@ -6,43 +6,43 @@ DATA_FILES = {
 
 HIGH_FREQUENCY_SECTOR_INDICATORS = {
     "Water Transport": {
-        "Tanker Arrivals": [
+        "Tanker Monthly Arrivals (No. of Vessels)": [
             "Tanker Arrivals: Unit: Above 75 Gross Tonnage: Oil Tanker",
             "Tanker Arrivals: Unit: Above 75 Gross Tonnage: Chemical Tanker",
             "Tanker Arrivals: Unit: Above 75 Gross Tonnage: LNG and LPG Tanker",
         ],
-        "Tanker Arrivals GT": [
+        "Tanker Monthly Arrivals (Tonnage)": [
             "Tanker Arrivals: GT: Above 75 Gross Tonnage: Oil Tanker",
             "Tanker Arrivals: GT: Above 75 Gross Tonnage: Chemical Tanker",
             "Tanker Arrivals: GT: Above 75 Gross Tonnage: LNG and LPG Tanker",
         ],
-        "Sea Cargo Handled": [
+        "Monthly Sea Cargo Handled": [
             "Sea Cargo Handled",
         ],
-        "Port Calls": [
+        "Daily Port Calls (Arrivals)": [
             "Port Calls: Arrivals",
             # "Port Calls: Departures",
         ],
     },
     "Air Transport": {
-        "Flight Movements": [
+        "Monthly Flight Movements": [
             "Changi Airport: No. of Flight ",
         ],
-        "Passenger Movements": [
+        "Monthly Passenger Movements": [
             "Changi Airport: Passenger Movements"
         ],
-        "Air Freight": [
+        "Monthly Air Freight": [
             "Changi Airport: Air Freight Movements"
         ]
     },
     "Financial": {
-        "SGX Turnover": [
+        "SGX Daily Turnover": [
             "SGX: Turnover: Shares: Total"
         ],
-        "Forex Turnover": [
+        "Forex Monthly Turnover": [
             "Foreign Exchange Market: SGD: Total Turnover"
         ],
-        "Domestic Interest Rates": [
+        "Daily Domestic Interest Rates": [
             "Domestic Interest Rates: SORA: 3 Month Compounded",
             "Treasury Bond: MAS: Yield: 2 Years",
             "Treasury Bond: MAS: Yield: 10 Years"
