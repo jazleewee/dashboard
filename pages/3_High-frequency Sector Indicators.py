@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.express as px
 
 from src.csv_loader import load_chart_from_csv
-from src.series_config import HIGH_FREQUENCY_SECTOR_INDICATORS
+from src.series_config import HIGH_FREQUENCY_SECTOR_INDICATORS, DATA_FILES
 
 st.title("High-frequency Sector Indicators")
 
@@ -20,11 +20,14 @@ def make_y_label(unit: str) -> str:
 for section_name, charts in HIGH_FREQUENCY_SECTOR_INDICATORS.items():
     st.header(section_name)
 
-    for chart_title, series_columns in charts.items():
-        if not series_columns:
-            continue
+    csv_path = DATA_FILES.get(section_name)
 
-        df, unit = load_chart_from_csv(CSV_PATH, series_columns)
+    if not csv_path:
+        st.warning(f"No CSV defined for {section_name}")
+        continue
+
+    for chart_title, series_columns in charts.items():
+        df, unit = load_chart_from_csv(csv_path, series_columns)
 
         if df.empty:
             st.warning(f"No data returned for {chart_title}.")
@@ -42,7 +45,6 @@ for section_name, charts in HIGH_FREQUENCY_SECTOR_INDICATORS.items():
             xaxis_title="Date",
             yaxis_title=make_y_label(unit),
             hovermode="x unified",
-            legend_title_text="Series",
         )
 
         st.plotly_chart(fig, use_container_width=True)

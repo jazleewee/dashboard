@@ -1,3 +1,8 @@
+DATA_FILES = {
+    "Water Transport": "data/Water Transport.csv",
+    "Financial": "data/Financial.csv",
+}
+
 HIGH_FREQUENCY_SECTOR_INDICATORS = {
     "Water Transport": {
         "Tanker Arrivals": [
@@ -20,7 +25,10 @@ HIGH_FREQUENCY_SECTOR_INDICATORS = {
     },
     "Financial": {
         "SGX Turnover": [
-            # later, put CSV column names here
+            "SGX: Turnover: Shares: Total"
         ],
+        "Forex Turnover": [
+            "Foreign Exchange Market: SGD: Total Turnover"
+        ]
     },
 }
