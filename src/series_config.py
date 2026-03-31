@@ -1,5 +1,6 @@
 DATA_FILES = {
     "Water Transport": "data/Water Transport.csv",
+    "Air Transport": "data/Air Transport.csv",
     "Financial": "data/Financial.csv",
 }
 
@@ -20,8 +21,19 @@ HIGH_FREQUENCY_SECTOR_INDICATORS = {
         ],
         "Port Calls": [
             "Port Calls: Arrivals",
-            "Port Calls: Departures",
+            # "Port Calls: Departures",
         ],
+    },
+    "Air Transport": {
+        "Flight Movements": [
+            "Changi Airport: No. of Flight ",
+        ],
+        "Passenger Movements": [
+            "Changi Airport: Passenger Movements"
+        ],
+        "Air Freight": [
+            "Changi Airport: Air Freight Movements"
+        ]
     },
     "Financial": {
         "SGX Turnover": [
@@ -29,6 +41,11 @@ HIGH_FREQUENCY_SECTOR_INDICATORS = {
         ],
         "Forex Turnover": [
             "Foreign Exchange Market: SGD: Total Turnover"
+        ],
+        "Domestic Interest Rates": [
+            "Domestic Interest Rates: SORA: 3 Month Compounded",
+            "Treasury Bond: MAS: Yield: 2 Years",
+            "Treasury Bond: MAS: Yield: 10 Years"
         ]
     },
 }
