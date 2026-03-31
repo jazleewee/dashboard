@@ -1,0 +1,4 @@
+streamlit
+plotly
+pandas
+ceic_api_client
