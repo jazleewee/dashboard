@@ -70,4 +70,11 @@ def _load_chart_from_csv_cached(
 
 def load_chart_from_csv(csv_path: str, series_columns: list[str]) -> tuple[pd.DataFrame, str, str]:
     file_mtime_ns = Path(csv_path).stat().st_mtime_ns
-    return _load_chart_from_csv_cached(csv_path, series_columns, file_mtime_ns)
+    result = _load_chart_from_csv_cached(csv_path, series_columns, file_mtime_ns)
+
+    # Be tolerant of older cached values created before frequency was added.
+    if len(result) == 2:
+        df, unit = result
+        return df, unit, ""
+
+    return result
