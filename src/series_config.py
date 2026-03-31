@@ -6,6 +6,10 @@ DATA_FILES = {
 
 HIGH_FREQUENCY_SECTOR_INDICATORS = {
     "Water Transport": {
+        "Daily Port Calls (Arrivals)": [
+            "Port Calls: Arrivals",
+            # "Port Calls: Departures",
+        ],
         "Tanker Monthly Arrivals (No. of Vessels)": [
             "Tanker Arrivals: Unit: Above 75 Gross Tonnage: Oil Tanker",
             "Tanker Arrivals: Unit: Above 75 Gross Tonnage: Chemical Tanker",
@@ -18,10 +22,6 @@ HIGH_FREQUENCY_SECTOR_INDICATORS = {
         ],
         "Monthly Sea Cargo Handled": [
             "Sea Cargo Handled",
-        ],
-        "Daily Port Calls (Arrivals)": [
-            "Port Calls: Arrivals",
-            # "Port Calls: Departures",
         ],
     },
     "Air Transport": {

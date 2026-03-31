@@ -4,7 +4,7 @@ import plotly.express as px
 from src.csv_loader import load_chart_from_csv
 from src.series_config import HIGH_FREQUENCY_SECTOR_INDICATORS, DATA_FILES
 
-st.title("High-frequency Sector Indicators")
+st.title("High Frequency Sector Indicators")
 
 SECTION_DIVIDER_HTML = """
 <hr style="
