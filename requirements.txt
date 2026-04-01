@@ -1,4 +1,4 @@
 streamlit
 plotly
 pandas
-ceic-api-client
+ceic-api-client @ https://downloads.ceicdata.com/python/ceic-api-client/ceic_api_client-2.11.4.390.tar.gz
