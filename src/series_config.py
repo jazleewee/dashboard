@@ -1,51 +1,131 @@
-DATA_FILES = {
-    "Water Transport": "data/Water Transport.csv",
-    "Air Transport": "data/Air Transport.csv",
-    "Financial": "data/Financial.csv",
+SERIES_REGISTRY = {
+    "sea_cargo_handled": {
+        "series_id": "sea_cargo_handled",
+        "source": "ceic",
+        "source_key": "36680501",
+        "label": "Sea Cargo Handled",
+        "unit": "",
+        "frequency": "",
+    },
+    "container_throughput": {
+        "series_id": "container_throughput",
+        "source": "ceic",
+        "source_key": "36681201",
+        "label": "Container Throughput",
+        "unit": "",
+        "frequency": "",
+    },
+    "air_flight_movements": {
+        "series_id": "air_flight_movements",
+        "source": "ceic",
+        "source_key": "36670301",
+        "label": "Flight Movements",
+        "unit": "",
+        "frequency": "",
+    },
+    "air_passenger_movements": {
+        "series_id": "air_passenger_movements",
+        "source": "ceic",
+        "source_key": "241774802",
+        "label": "Passenger Movements",
+        "unit": "",
+        "frequency": "",
+    },
+    "air_freight_movements": {
+        "series_id": "air_freight_movements",
+        "source": "ceic",
+        "source_key": "241774902",
+        "label": "Air Freight Movements",
+        "unit": "",
+        "frequency": "",
+    },
+    "financial_sgx_turnover": {
+        "series_id": "financial_sgx_turnover",
+        "source": "ceic",
+        "source_key": "35960701",
+        "label": "SGX Daily Turnover",
+        "unit": "",
+        "frequency": "",
+    },
+    "financial_forex_turnover": {
+        "series_id": "financial_forex_turnover",
+        "source": "ceic",
+        "source_key": "471805317",
+        "label": "Forex Monthly Turnover",
+        "unit": "",
+        "frequency": "",
+    },
+    "financial_sora_3m": {
+        "series_id": "financial_sora_3m",
+        "source": "ceic",
+        "source_key": "468026967",
+        "label": "SORA 3M Compounded",
+        "unit": "",
+        "frequency": "",
+    },
+    "financial_yield_2y": {
+        "series_id": "financial_yield_2y",
+        "source": "ceic",
+        "source_key": "35945301",
+        "label": "MAS Yield 2Y",
+        "unit": "",
+        "frequency": "",
+    },
+    "financial_yield_10y": {
+        "series_id": "financial_yield_10y",
+        "source": "ceic",
+        "source_key": "35945601",
+        "label": "MAS Yield 10Y",
+        "unit": "",
+        "frequency": "",
+    },
+    "visitor_arrival_land": {
+        "series_id": "visitor_arrival_land",
+        "source": "ceic",
+        "source_key": "36588001",
+        "label": "Visitor Arrivals by Land",
+        "unit": "",
+        "frequency": "",
+    },
 }
 
-HIGH_FREQUENCY_SECTOR_INDICATORS = {
+
+SECTOR_SPECIFIC_INDICATORS = {
     "Water Transport": {
-        "Daily Port Calls (Arrivals)": [
-            "Port Calls: Arrivals",
-            # "Port Calls: Departures",
-        ],
-        "Tanker Monthly Arrivals (No. of Vessels)": [
-            "Tanker Arrivals: Unit: Above 75 Gross Tonnage: Oil Tanker",
-            "Tanker Arrivals: Unit: Above 75 Gross Tonnage: Chemical Tanker",
-            "Tanker Arrivals: Unit: Above 75 Gross Tonnage: LNG and LPG Tanker",
-        ],
-        "Tanker Monthly Arrivals (Tonnage)": [
-            "Tanker Arrivals: GT: Above 75 Gross Tonnage: Oil Tanker",
-            "Tanker Arrivals: GT: Above 75 Gross Tonnage: Chemical Tanker",
-            "Tanker Arrivals: GT: Above 75 Gross Tonnage: LNG and LPG Tanker",
-        ],
         "Monthly Sea Cargo Handled": [
-            "Sea Cargo Handled",
+            "sea_cargo_handled",
+        ],
+        "Monthly Container Throughput": [
+            "container_throughput",
         ],
     },
     "Air Transport": {
         "Monthly Flight Movements": [
-            "Changi Airport: No. of Flight ",
+            "air_flight_movements",
         ],
         "Monthly Passenger Movements": [
-            "Changi Airport: Passenger Movements"
+            "air_passenger_movements",
         ],
         "Monthly Air Freight": [
-            "Changi Airport: Air Freight Movements"
-        ]
+            "air_freight_movements",
+        ],
+    },
+    "Land Transport": {
+        "Monthly Visitor Arrivals by Land": [
+            "visitor_arrival_land",
+        ],
     },
     "Financial": {
         "SGX Daily Turnover": [
-            "SGX: Turnover: Shares: Total"
+            "financial_sgx_turnover",
         ],
         "Forex Monthly Turnover": [
-            "Foreign Exchange Market: SGD: Total Turnover"
+            "financial_forex_turnover",
         ],
         "Daily Domestic Interest Rates": [
-            "Domestic Interest Rates: SORA: 3 Month Compounded",
-            "Treasury Bond: MAS: Yield: 2 Years",
-            "Treasury Bond: MAS: Yield: 10 Years"
-        ]
+            "financial_sora_3m",
+            "financial_yield_2y",
+            "financial_yield_10y",
+        ],
     },
 }
