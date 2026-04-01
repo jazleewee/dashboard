@@ -1,4 +1,44 @@
 SERIES_REGISTRY = {
+    "global_crude_oil": {
+        "series_id": "global_crude_oil",
+        "source": "ceic",
+        "source_key": "42651501",
+        "label": "Crude Oil",
+        "unit": "USD/Barrel",
+        "frequency": "",
+    },
+    "global_us_natural_gas": {
+        "series_id": "global_us_natural_gas",
+        "source": "ceic",
+        "source_key": "40780401",
+        "label": "US Natural Gas",
+        "unit": "USD/MM BTU",
+        "frequency": "",
+    },
+    "global_germany_natural_gas": {
+        "series_id": "global_germany_natural_gas",
+        "source": "ceic",
+        "source_key": "449519797",
+        "label": "Germany Natural Gas",
+        "unit": "USD/MM BTU",
+        "frequency": "",
+    },
+    "global_japan_naphtha": {
+        "series_id": "global_japan_naphtha",
+        "source": "ceic",
+        "source_key": "161345001",
+        "label": "Japan Naphtha",
+        "unit": "USD/Barrel",
+        "frequency": "",
+    },
+    "global_france_naphtha": {
+        "series_id": "global_france_naphtha",
+        "source": "ceic",
+        "source_key": "352664901",
+        "label": "France Naphtha",
+        "unit": "USD/Ton",
+        "frequency": "",
+    },
     "sea_cargo_handled": {
         "series_id": "sea_cargo_handled",
         "source": "ceic",
@@ -86,6 +126,25 @@ SERIES_REGISTRY = {
         "label": "Visitor Arrivals by Land",
         "unit": "",
         "frequency": "",
+    },
+}
+
+
+GLOBAL_PRICES = {
+    "Upstream": {
+        "Crude Oil": {
+            "series_ids": ["global_crude_oil"],
+        },
+        "Natural Gas": {
+            "series_ids": [
+                "global_us_natural_gas",
+                "global_germany_natural_gas",
+            ],
+        },
+        "Naphtha": {
+            "left_series_ids": ["global_japan_naphtha"],
+            "right_series_ids": ["global_france_naphtha"],
+        },
     },
 }
 
