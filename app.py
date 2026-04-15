@@ -3,13 +3,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from src.charts import build_line_chart
 from src.data_loader import load_series
 from src.dependency_config import DEPENDENCY_NODES, ROOT_NODES
 from src.motorist_client import load_fuel_price_trend
-from src.google_sheets_client import SHEET_TABS, get_default_spreadsheet_id, load_google_sheet_tabs
+from src.google_sheets_client import SHEET_TABS, fetch_sheet_values, get_default_spreadsheet_id, load_google_sheet_tabs
 from src.series_config import SERIES_REGISTRY
 
 
@@ -305,25 +306,11 @@ def build_ceic_dataframe(series_ids: list[str]) -> tuple[pd.DataFrame, list[str]
 
 
 MINDMAP_COLUMNS = [
-    (
-        "Upstream Inputs",
-        "Crude oil and gas supply shocks that start the chain.",
-        ["crude_oil", "gas"],
-        "#f2e7c8",
-    ),
+    ("Upstream Inputs", "Crude oil and gas supply shocks that start the chain.", ["crude_oil", "gas"], "#f2e7c8"),
     (
         "Products & Feedstocks",
         "Fuel and gas-linked products that transmit upstream pressure.",
-        [
-            "marine_fuel",
-            "jet_fuel",
-            "diesel_petrol",
-            "lpg",
-            "naphtha",
-            "ethane",
-            "methane",
-            "helium",
-        ],
+        ["marine_fuel", "jet_fuel", "diesel_petrol", "lpg", "naphtha", "ethane", "methane", "helium"],
         "#f8edd9",
     ),
     (
@@ -335,155 +322,361 @@ MINDMAP_COLUMNS = [
     (
         "Direct Hit Sectors",
         "Sectors hit most directly by the energy and chemicals transmission path.",
-        [
-            "water_transport",
-            "air_transport",
-            "land_transport",
-            "petrochemicals",
-            "basic_chemicals",
-            "water_waste",
-            "petroleum",
-            "gas_electricity",
-        ],
+        ["water_transport", "air_transport", "land_transport", "petrochemicals", "basic_chemicals", "water_waste", "petroleum", "gas_electricity"],
         "#d8e9ff",
     ),
     (
         "Indirect Hit Sectors",
         "Second-round sectors exposed through production, utilities, and trade links.",
-        [
-            "wholesale_bunkering",
-            "wholesale_ex_bunkering",
-            "construction",
-            "real_estate",
-            "food_beverage",
-            "semiconductors",
-        ],
+        ["wholesale_bunkering", "wholesale_ex_bunkering", "construction", "real_estate", "food_beverage", "semiconductors"],
         "#e4e7fb",
     ),
 ]
 
+PRODUCT_LABELS = {
+    "2709": "2709: Crude Oil",
+    "271012": "271012: Light Oils / Petrol",
+    "271019": "271019: Other Petroleum Oils",
+    "271111": "271111: Liquefied Natural Gas",
+    "271112": "271112: Propane",
+    "271113": "271113: Butanes",
+    "271121": "271121: Natural Gas in Gaseous State",
+}
 
-selected_node_id = st.session_state.get("selected_dependency_node", ROOT_NODES[0])
 
-with st.expander("Reference Mindmap", expanded=False):
-    image_left, image_center, image_right = st.columns([0.12, 0.76, 0.12])
-    with image_center:
-        st.image("mindmap.png", use_container_width=True)
+@st.cache_data(ttl=1800, show_spinner="Running")
+def load_trade_data(spreadsheet_id: str) -> pd.DataFrame:
+    rows = fetch_sheet_values(spreadsheet_id, "Trade")
+    if not rows:
+        return pd.DataFrame()
 
-st.caption("Click any bubble in the left-to-right transmission map to update the indicator panel below.")
+    header, data = rows[0], rows[1:]
+    df = pd.DataFrame(data, columns=header)
+    if df.empty:
+        return df
 
-layout_widths = [1, 0.22, 1.3, 0.22, 1.05, 0.22, 1.25, 0.22, 1.1]
-layout_columns = st.columns(layout_widths, gap="small")
+    df["Year"] = pd.to_numeric(df["Year"], errors="coerce").astype("Int64")
+    df["TradeValue in 1000 USD"] = pd.to_numeric(df["TradeValue in 1000 USD"], errors="coerce")
+    for column in ["ProductCode", "TradeFlowName", "PartnerName", "PartnerISO3"]:
+        df[column] = df[column].astype(str).str.strip()
 
-for column_index, (title, note, node_ids, background) in enumerate(MINDMAP_COLUMNS):
-    layout_position = column_index * 2
-    with layout_columns[layout_position]:
-        st.markdown(
-            f'<div class="mindmap-band" style="background:{background};"><div class="band-title">{title}</div><div class="column-note">{note}</div>',
-            unsafe_allow_html=True,
-        )
-        selected_node_id = render_node_row(node_ids, selected_node_id, f"mindmap_{column_index}")
-        st.markdown("</div>", unsafe_allow_html=True)
+    return df.dropna(subset=["Year", "TradeValue in 1000 USD"]).reset_index(drop=True)
 
-    if column_index < len(MINDMAP_COLUMNS) - 1:
-        with layout_columns[layout_position + 1]:
+
+def prepare_trade_share_data(
+    trade_df: pd.DataFrame,
+    *,
+    product_code: str,
+    trade_flow: str,
+    years: list[int],
+    top_n: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    filtered = trade_df[
+        (trade_df["ProductCode"] == product_code)
+        & (trade_df["TradeFlowName"] == trade_flow)
+        & (trade_df["Year"].isin(years))
+        & (trade_df["PartnerName"] != "World")
+    ].copy()
+
+    if filtered.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    grouped = (
+        filtered.groupby(["Year", "PartnerName"], as_index=False)["TradeValue in 1000 USD"]
+        .sum()
+        .sort_values(["Year", "TradeValue in 1000 USD"], ascending=[True, False])
+    )
+
+    latest_year = max(years)
+    ranking = (
+        grouped[grouped["Year"] == latest_year]
+        .sort_values("TradeValue in 1000 USD", ascending=False)["PartnerName"]
+        .tolist()
+    )
+    top_partners = ranking[:top_n]
+
+    grouped["PartnerGroup"] = grouped["PartnerName"].where(grouped["PartnerName"].isin(top_partners), "Other")
+    chart_df = (
+        grouped.groupby(["Year", "PartnerGroup"], as_index=False)["TradeValue in 1000 USD"]
+        .sum()
+        .sort_values(["Year", "TradeValue in 1000 USD"], ascending=[True, False])
+    )
+    chart_df["YearLabel"] = chart_df["Year"].astype(str)
+    chart_df["Share"] = chart_df.groupby("Year")["TradeValue in 1000 USD"].transform(lambda s: s / s.sum() * 100)
+
+    detail_df = grouped.copy()
+    detail_df["Share"] = detail_df.groupby("Year")["TradeValue in 1000 USD"].transform(lambda s: s / s.sum() * 100)
+    detail_df = detail_df.sort_values(["Year", "TradeValue in 1000 USD"], ascending=[True, False]).reset_index(drop=True)
+    return chart_df, detail_df
+
+
+def get_trade_recommendations(trade_df: pd.DataFrame) -> pd.DataFrame:
+    if trade_df.empty:
+        return pd.DataFrame()
+
+    imports_only = trade_df[
+        (trade_df["TradeFlowName"] == "Gross Imp.") & (trade_df["PartnerName"] != "World")
+    ].copy()
+    if imports_only.empty:
+        return pd.DataFrame()
+
+    summary = (
+        imports_only.groupby("ProductCode", as_index=False)["TradeValue in 1000 USD"]
+        .sum()
+        .sort_values("TradeValue in 1000 USD", ascending=False)
+        .reset_index(drop=True)
+    )
+    summary["ProductLabel"] = summary["ProductCode"].map(lambda code: PRODUCT_LABELS.get(code, code))
+    return summary
+
+
+def render_supply_linkages_view() -> None:
+    selected_node_id = st.session_state.get("selected_dependency_node", ROOT_NODES[0])
+
+    with st.expander("Reference Mindmap", expanded=False):
+        image_left, image_center, image_right = st.columns([0.12, 0.76, 0.12])
+        with image_center:
+            st.image("mindmap.png", use_container_width=True)
+
+    st.caption("Click any bubble in the left-to-right transmission map to update the indicator panel below.")
+
+    layout_widths = [1, 0.22, 1.3, 0.22, 1.05, 0.22, 1.25, 0.22, 1.1]
+    layout_columns = st.columns(layout_widths, gap="small")
+
+    for column_index, (title, note, node_ids, background) in enumerate(MINDMAP_COLUMNS):
+        layout_position = column_index * 2
+        with layout_columns[layout_position]:
             st.markdown(
-                '<div class="mindmap-connector"><div class="mindmap-connector-line"></div></div>',
+                f'<div class="mindmap-band" style="background:{background};"><div class="band-title">{title}</div><div class="column-note">{note}</div>',
                 unsafe_allow_html=True,
             )
+            selected_node_id = render_node_row(node_ids, selected_node_id, f"mindmap_{column_index}")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-st.session_state["selected_dependency_node"] = selected_node_id
-selected_node = get_node(selected_node_id)
+        if column_index < len(MINDMAP_COLUMNS) - 1:
+            with layout_columns[layout_position + 1]:
+                st.markdown(
+                    '<div class="mindmap-connector"><div class="mindmap-connector-line"></div></div>',
+                    unsafe_allow_html=True,
+                )
 
-path_nodes = get_ancestry(selected_node_id)
-path_markup_parts = ['<div style="margin-top: 0.75rem;"><strong>Dependency Path</strong></div>', '<div class="path-chain">']
-for index, node_id in enumerate(path_nodes):
-    node_label = get_node(node_id)["label"]
-    node_class = "path-node path-node-current" if node_id == selected_node_id else "path-node"
-    path_markup_parts.append(f'<span class="{node_class}">{node_label}</span>')
-    if index < len(path_nodes) - 1:
-        path_markup_parts.append('<span class="path-arrow">→</span>')
-path_markup_parts.append("</div>")
-path_markup = "".join(path_markup_parts)
-st.markdown(
-    f"""
-<div class="node-meta">
-    <div><span class="source-chip">Selected Node</span><strong>{selected_node['label']}</strong></div>
-    <div style="margin-top: 0.6rem;">{selected_node.get('description', '')}</div>
-    {path_markup}
-</div>
-""",
-    unsafe_allow_html=True,
-)
+    st.session_state["selected_dependency_node"] = selected_node_id
+    selected_node = get_node(selected_node_id)
 
-st.markdown(f"## Indicators for {selected_node['label']}")
+    path_nodes = get_ancestry(selected_node_id)
+    path_markup_parts = ['<div style="margin-top: 0.75rem;"><strong>Dependency Path</strong></div>', '<div class="path-chain">']
+    for index, node_id in enumerate(path_nodes):
+        node_label = get_node(node_id)["label"]
+        node_class = "path-node path-node-current" if node_id == selected_node_id else "path-node"
+        path_markup_parts.append(f'<span class="{node_class}">{node_label}</span>')
+        if index < len(path_nodes) - 1:
+            path_markup_parts.append('<span class="path-arrow">→</span>')
+    path_markup_parts.append("</div>")
+    path_markup = "".join(path_markup_parts)
+    st.markdown(
+        f"""
+    <div class="node-meta">
+        <div><span class="source-chip">Selected Node</span><strong>{selected_node['label']}</strong></div>
+        <div style="margin-top: 0.6rem;">{selected_node.get('description', '')}</div>
+        {path_markup}
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
-ceic_series_ids = get_matching_ceic_series_ids(selected_node_id)
-ceic_df, ceic_errors = build_ceic_dataframe(ceic_series_ids)
+    st.markdown(f"## Indicators for {selected_node['label']}")
 
-google_df = pd.DataFrame()
-google_errors: list[str] = []
-google_spreadsheet_id = get_default_spreadsheet_id()
-if google_spreadsheet_id:
+    ceic_series_ids = get_matching_ceic_series_ids(selected_node_id)
+    ceic_df, ceic_errors = build_ceic_dataframe(ceic_series_ids)
+
+    google_df = pd.DataFrame()
+    google_errors: list[str] = []
+    google_spreadsheet_id = get_default_spreadsheet_id()
+    if google_spreadsheet_id:
+        try:
+            google_tabs = load_google_sheet_tabs(google_spreadsheet_id)
+            matched_google_frames = get_matching_google_frames(selected_node_id, google_tabs)
+            google_frames = [matched_google_frames[sheet_name] for sheet_name in SHEET_TABS if sheet_name in matched_google_frames]
+            if google_frames:
+                google_df = pd.concat(google_frames, ignore_index=True).sort_values(
+                    ["frequency", "unit", "series_name", "date"]
+                ).reset_index(drop=True)
+        except Exception as exc:
+            google_errors.append(str(exc))
+
+    for error in ceic_errors + google_errors:
+        st.warning(error)
+
+    if ceic_df.empty and google_df.empty:
+        st.info("No charts are mapped to this node yet.")
+    else:
+        if not google_df.empty:
+            render_grouped_charts(google_df, selected_node["label"], "Google Sheets")
+
+        if not ceic_df.empty:
+            render_grouped_charts(ceic_df, selected_node["label"], "CEIC")
+
+    if selected_node_id == "land_transport":
+        st.markdown("### Fuel Prices Trend")
+        try:
+            fuel_grade_labels = {"92": "92", "95": "95", "98": "98", "premium": "Premium", "diesel": "Diesel"}
+            fuel_date_range_labels = {6: "6 months", 12: "12 months", 24: "24 months"}
+
+            selected_grade = st.segmented_control(
+                "Fuel Type",
+                options=list(fuel_grade_labels.keys()),
+                default="92",
+                format_func=lambda value: fuel_grade_labels[value],
+                key="land_transport_fuel_grade",
+            )
+            selected_date_range = st.segmented_control(
+                "Date Range",
+                options=list(fuel_date_range_labels.keys()),
+                default=6,
+                format_func=lambda value: fuel_date_range_labels[value],
+                key="land_transport_date_range",
+            )
+
+            fuel_trend_df = load_fuel_price_trend(grade=selected_grade, date_range=selected_date_range)
+            if fuel_trend_df.empty:
+                st.info("No fuel price trend data was returned.")
+            else:
+                fuel_fig = build_line_chart(fuel_trend_df, "", "SGD/Litre", "Daily")
+                st.plotly_chart(fuel_fig, use_container_width=True)
+        except Exception as exc:
+            st.warning(f"Unable to load fuel price trend data: {exc}")
+
+
+def render_trade_view() -> None:
+    st.markdown("## Trade")
+    st.caption("Explore Singapore's import or export country shares by product over 2022 to 2024.")
+
+    spreadsheet_id = get_default_spreadsheet_id()
+    if not spreadsheet_id:
+        st.info("Google Sheets is not configured.")
+        return
+
     try:
-        google_tabs = load_google_sheet_tabs(google_spreadsheet_id)
-        matched_google_frames = get_matching_google_frames(selected_node_id, google_tabs)
-        google_frames = [matched_google_frames[sheet_name] for sheet_name in SHEET_TABS if sheet_name in matched_google_frames]
-        if google_frames:
-            google_df = pd.concat(google_frames, ignore_index=True).sort_values(
-                ["frequency", "unit", "series_name", "date"]
-            ).reset_index(drop=True)
+        trade_df = load_trade_data(spreadsheet_id)
     except Exception as exc:
-        google_errors.append(str(exc))
+        st.warning(f"Unable to load Trade data: {exc}")
+        return
 
-for error in ceic_errors + google_errors:
-    st.warning(error)
+    if trade_df.empty:
+        st.info("No Trade data was returned.")
+        return
 
-if ceic_df.empty and google_df.empty:
-    st.info("No charts are mapped to this node yet.")
-else:
-    if not google_df.empty:
-        render_grouped_charts(google_df, selected_node["label"], "Google Sheets")
-
-    if not ceic_df.empty:
-        render_grouped_charts(ceic_df, selected_node["label"], "CEIC")
-
-if selected_node_id == "land_transport":
-    st.markdown("### Fuel Prices Trend")
-    try:
-        fuel_grade_labels = {
-            "92": "92",
-            "95": "95",
-            "98": "98",
-            "premium": "Premium",
-            "diesel": "Diesel",
-        }
-        fuel_date_range_labels = {
-            6: "6 months",
-            12: "12 months",
-            24: "24 months",
-        }
-
-        selected_grade = st.segmented_control(
-            "Fuel Type",
-            options=list(fuel_grade_labels.keys()),
-            default="92",
-            format_func=lambda value: fuel_grade_labels[value],
-            key="land_transport_fuel_grade",
-        )
-        selected_date_range = st.segmented_control(
-            "Date Range",
-            options=list(fuel_date_range_labels.keys()),
-            default=6,
-            format_func=lambda value: fuel_date_range_labels[value],
-            key="land_transport_date_range",
+    recommendations = get_trade_recommendations(trade_df)
+    if not recommendations.empty:
+        recommended_labels = recommendations.head(3)["ProductLabel"].tolist()
+        st.info(
+            "Recommended starting products: "
+            + ", ".join(recommended_labels)
+            + ". These are the largest non-World import categories in the Trade sheet, so they should give the clearest first read on supplier concentration."
         )
 
-        fuel_trend_df = load_fuel_price_trend(grade=selected_grade, date_range=selected_date_range)
-        if fuel_trend_df.empty:
-            st.info("No fuel price trend data was returned.")
-        else:
-            fuel_fig = build_line_chart(fuel_trend_df, "", "SGD/Litre", "Daily")
-            st.plotly_chart(fuel_fig, use_container_width=True)
-    except Exception as exc:
-        st.warning(f"Unable to load fuel price trend data: {exc}")
+    available_products = [code for code in PRODUCT_LABELS if code in set(trade_df["ProductCode"].unique())]
+    flow_labels = {"Gross Imp.": "Imports", "Gross Exp.": "Exports"}
+    years_available = sorted(int(year) for year in trade_df["Year"].dropna().unique())
+
+    controls = st.columns([1.45, 1, 0.9, 1.1])
+    selected_product = controls[0].selectbox(
+        "Product",
+        options=available_products,
+        format_func=lambda code: PRODUCT_LABELS.get(code, code),
+        index=0,
+    )
+    selected_flow = controls[1].segmented_control(
+        "Trade Flow",
+        options=list(flow_labels.keys()),
+        default="Gross Imp.",
+        format_func=lambda flow: flow_labels[flow],
+    )
+    top_n = controls[2].segmented_control("Top Countries", options=[5, 10, 15], default=10)
+    selected_years = controls[3].multiselect("Years", options=years_available, default=years_available)
+
+    if not selected_years:
+        st.info("Select at least one year.")
+        return
+
+    chart_df, detail_df = prepare_trade_share_data(
+        trade_df,
+        product_code=selected_product,
+        trade_flow=selected_flow,
+        years=selected_years,
+        top_n=int(top_n),
+    )
+
+    if chart_df.empty:
+        st.info("No trade rows matched the selected filters.")
+        return
+
+    selected_label = PRODUCT_LABELS.get(selected_product, selected_product)
+    st.caption(
+        f"Showing {flow_labels[selected_flow].lower()} country shares for {selected_label}. "
+        "The World aggregate is excluded so the shares sum correctly across partner countries."
+    )
+
+    chart_title = f"{flow_labels[selected_flow]} Shares by Country"
+    fig = px.bar(
+        chart_df,
+        x="YearLabel",
+        y="Share",
+        color="PartnerGroup",
+        text_auto=".1f",
+        template="plotly_white",
+        category_orders={"YearLabel": [str(year) for year in selected_years]},
+    )
+    fig.update_layout(
+        title=dict(text=chart_title, x=0.02, xanchor="left"),
+        barmode="stack",
+        yaxis_title="Share of Total (%)",
+        xaxis_title="Year",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        hovermode="x unified",
+        margin=dict(l=20, r=20, t=60, b=20),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+    )
+    fig.update_traces(
+        hovertemplate="<b>%{fullData.name}</b><br>Year: %{x}<br>Share: %{y:.2f}%<br>Value: %{customdata:,.0f}<extra></extra>",
+        customdata=chart_df["TradeValue in 1000 USD"],
+    )
+    fig.update_yaxes(range=[0, 100], ticksuffix="%")
+    st.plotly_chart(fig, use_container_width=True)
+
+    latest_year = max(selected_years)
+    latest_chart_slice = chart_df[chart_df["Year"] == latest_year].copy()
+    latest_chart_slice = latest_chart_slice.sort_values("Share", ascending=False).reset_index(drop=True)
+    total_latest_value = latest_chart_slice["TradeValue in 1000 USD"].sum()
+    top_country = latest_chart_slice.iloc[0]["PartnerGroup"]
+    top_country_share = latest_chart_slice.iloc[0]["Share"]
+
+    metric_left, metric_mid, metric_right = st.columns(3)
+    metric_left.metric(f"{latest_year} Total", f"USD {total_latest_value:,.0f}k")
+    metric_mid.metric("Largest Country Share", f"{top_country_share:.1f}%")
+    metric_right.metric("Largest Country", str(top_country))
+
+    latest_table = detail_df[detail_df["Year"] == latest_year].copy()
+    latest_table = latest_table.rename(
+        columns={
+            "PartnerName": "Country",
+            "TradeValue in 1000 USD": "Trade Value (USD '000)",
+            "Share": "Share (%)",
+        }
+    )
+    latest_table["Trade Value (USD '000)"] = latest_table["Trade Value (USD '000)"].map(lambda value: f"{value:,.0f}")
+    latest_table["Share (%)"] = latest_table["Share (%)"].map(lambda value: f"{value:.2f}")
+    st.markdown(f"### {flow_labels[selected_flow]} by Country in {latest_year}")
+    st.dataframe(
+        latest_table[["Country", "Trade Value (USD '000)", "Share (%)"]].reset_index(drop=True),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+dashboard_tab, trade_tab = st.tabs(["Supply Linkages", "Trade"])
+with dashboard_tab:
+    render_supply_linkages_view()
+with trade_tab:
+    render_trade_view()
