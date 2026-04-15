@@ -7,7 +7,12 @@ __pycache__/
 
 # Secrets
 .streamlit/secrets.toml
+.streamlit/*.toml
 .env
+*.pem
+*.key
+*-service-account.json
+ultimate-flare-493412-v9-ba4b98a6f7a8.json
 
 # OS files
 .DS_Store

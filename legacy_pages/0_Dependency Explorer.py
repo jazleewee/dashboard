@@ -6,15 +6,14 @@ import pandas as pd
 import streamlit as st
 
 from src.charts import build_line_chart
-from src.data_loader import load_series
 from src.dependency_config import DEPENDENCY_NODES, ROOT_NODES
-from src.motorist_client import load_fuel_price_trend
+from src.data_loader import load_series
 from src.google_sheets_client import SHEET_TABS, get_default_spreadsheet_id, load_google_sheet_tabs
 from src.series_config import SERIES_REGISTRY
 
 
-st.set_page_config(page_title="Dashboard", layout="wide")
-st.title("Energy Supply Linkages")
+st.set_page_config(page_title="Dependency Explorer", layout="wide")
+st.title("Energy Transmission Mindmap")
 st.caption("Explore how upstream energy disruptions flow through products, sectors, and the indicators attached to them.")
 
 st.markdown(
@@ -128,9 +127,6 @@ div[data-testid="stButton"] > button:hover {
     font-size: 1rem;
     font-weight: 700;
 }
-.g-gtitle {
-    display: none !important;
-}
 </style>
 """,
     unsafe_allow_html=True,
@@ -163,7 +159,7 @@ def render_node_row(node_ids: Iterable[str], selected_node_id: str, row_key: str
     node_ids = list(node_ids)
     if not node_ids:
         return selected_node_id
-    for node_id in node_ids:
+    for index, node_id in enumerate(node_ids):
         node = get_node(node_id)
         button_type = "primary" if node_id == selected_node_id else "secondary"
 
@@ -197,43 +193,31 @@ def matches_terms(value: str, terms: list[str]) -> bool:
 
 def get_matching_ceic_series_ids(node_id: str) -> list[str]:
     node = get_node(node_id)
-    explicit_ids = [series_id for series_id in node.get("series_ids", []) if series_id in SERIES_REGISTRY]
-    explicit_labels = {str(value).strip().lower() for value in node.get("ceic_labels", []) if str(value).strip()}
-
-    if not explicit_labels:
-        return explicit_ids
-
+    explicit_ids = list(node.get("series_ids", []))
+    terms = get_node_terms(node_id)
     matched_ids = list(explicit_ids)
+
     for series_id, series_def in SERIES_REGISTRY.items():
         if series_def.get("source") != "ceic":
             continue
-        label = str(series_def.get("label", series_id)).strip().lower()
-        if label in explicit_labels and series_id not in matched_ids:
+        label = series_def.get("label", series_id)
+        if matches_terms(label, terms) and series_id not in matched_ids:
             matched_ids.append(series_id)
 
     return matched_ids
 
 
-def normalize_exact_values(values: list[str]) -> set[str]:
-    return {str(value).strip().lower() for value in values if str(value).strip()}
-
-
 def get_matching_google_frames(node_id: str, google_tabs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-    node = get_node(node_id)
-    explicit_series = normalize_exact_values(node.get("google_sheet_series", []))
+    terms = get_node_terms(node_id)
     matched_frames: dict[str, pd.DataFrame] = {}
-
-    if not explicit_series:
-        return matched_frames
 
     for sheet_name, df in google_tabs.items():
         if df.empty:
             continue
 
-        normalized_series = df["series_name"].fillna("").astype(str).str.strip().str.lower()
-        series_match = normalized_series.isin(explicit_series)
-
-        matched_df = df[series_match].copy()
+        series_match = df["series_name"].fillna("").apply(lambda value: matches_terms(value, terms))
+        ticker_match = df["ticker"].fillna("").apply(lambda value: matches_terms(value, terms))
+        matched_df = df[series_match | ticker_match].copy()
 
         if not matched_df.empty:
             matched_frames[sheet_name] = matched_df.sort_values(["unit", "series_name", "date"]).reset_index(drop=True)
@@ -241,7 +225,7 @@ def get_matching_google_frames(node_id: str, google_tabs: dict[str, pd.DataFrame
     return matched_frames
 
 
-@st.cache_data(ttl=300, show_spinner="Running")
+@st.cache_data(ttl=300)
 def load_ceic_frames_for_series(series_ids: tuple[str, ...]) -> tuple[dict[str, pd.DataFrame], list[str]]:
     frames_by_series: dict[str, pd.DataFrame] = {}
     errors: list[str] = []
@@ -277,12 +261,11 @@ def render_grouped_charts(df: pd.DataFrame, base_title: str, source_label: str) 
     for (frequency, unit), group_df in df.groupby(["frequency", "unit"], dropna=False):
         normalized_frequency = str(frequency).strip() if pd.notna(frequency) else ""
         normalized_unit = str(unit).strip() if pd.notna(unit) else ""
-        grouped_frames[(normalized_frequency, normalized_unit)] = group_df.sort_values(
-            ["series_name", "date"]
-        ).reset_index(drop=True)
+        group_key = (normalized_frequency, normalized_unit)
+        grouped_frames[group_key] = group_df.sort_values(["series_name", "date"]).reset_index(drop=True)
 
     for (frequency, unit), group_df in grouped_frames.items():
-        title_bits = []
+        title_bits = [base_title, source_label]
         if frequency:
             title_bits.append(frequency)
         if unit:
@@ -302,7 +285,6 @@ def build_ceic_dataframe(series_ids: list[str]) -> tuple[pd.DataFrame, list[str]
 
     combined = pd.concat(frames_by_series.values(), ignore_index=True)
     return combined.sort_values(["unit", "frequency", "series_name", "date"]).reset_index(drop=True), errors
-
 
 MINDMAP_COLUMNS = [
     (
@@ -395,6 +377,7 @@ for column_index, (title, note, node_ids, background) in enumerate(MINDMAP_COLUM
 st.session_state["selected_dependency_node"] = selected_node_id
 selected_node = get_node(selected_node_id)
 
+path_labels = " -> ".join(get_node(node_id)["label"] for node_id in get_ancestry(selected_node_id))
 path_nodes = get_ancestry(selected_node_id)
 path_markup_parts = ['<div style="margin-top: 0.75rem;"><strong>Dependency Path</strong></div>', '<div class="path-chain">']
 for index, node_id in enumerate(path_nodes):
@@ -416,7 +399,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown(f"## Indicators for {selected_node['label']}")
+st.markdown("## Indicators")
+st.caption("Charts below are grouped automatically from Google Sheets series names and CEIC labels that match the selected node.")
 
 ceic_series_ids = get_matching_ceic_series_ids(selected_node_id)
 ceic_df, ceic_errors = build_ceic_dataframe(ceic_series_ids)
@@ -447,43 +431,3 @@ else:
 
     if not ceic_df.empty:
         render_grouped_charts(ceic_df, selected_node["label"], "CEIC")
-
-if selected_node_id == "land_transport":
-    st.markdown("### Fuel Prices Trend")
-    try:
-        fuel_grade_labels = {
-            "92": "92",
-            "95": "95",
-            "98": "98",
-            "premium": "Premium",
-            "diesel": "Diesel",
-        }
-        fuel_date_range_labels = {
-            6: "6 months",
-            12: "12 months",
-            24: "24 months",
-        }
-
-        selected_grade = st.segmented_control(
-            "Fuel Type",
-            options=list(fuel_grade_labels.keys()),
-            default="92",
-            format_func=lambda value: fuel_grade_labels[value],
-            key="land_transport_fuel_grade",
-        )
-        selected_date_range = st.segmented_control(
-            "Date Range",
-            options=list(fuel_date_range_labels.keys()),
-            default=6,
-            format_func=lambda value: fuel_date_range_labels[value],
-            key="land_transport_date_range",
-        )
-
-        fuel_trend_df = load_fuel_price_trend(grade=selected_grade, date_range=selected_date_range)
-        if fuel_trend_df.empty:
-            st.info("No fuel price trend data was returned.")
-        else:
-            fuel_fig = build_line_chart(fuel_trend_df, "", "SGD/Litre", "Daily")
-            st.plotly_chart(fuel_fig, use_container_width=True)
-    except Exception as exc:
-        st.warning(f"Unable to load fuel price trend data: {exc}")

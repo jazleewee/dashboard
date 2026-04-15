@@ -29,13 +29,14 @@ def make_date_formats(frequency: str, df: pd.DataFrame) -> tuple[str, str]:
 
 def build_line_chart(df: pd.DataFrame, chart_title: str, unit: str, frequency: str):
     hover_date_format, tick_date_format = make_date_formats(frequency, df)
+    resolved_title = str(chart_title).strip()
 
     fig = px.line(
         df,
         x="date",
         y="value",
         color="series_name",
-        title=chart_title,
+        title=resolved_title or None,
         template="plotly_white",
     )
 
@@ -53,25 +54,28 @@ def build_line_chart(df: pd.DataFrame, chart_title: str, unit: str, frequency: s
         yaxis_title=make_y_label(unit),
         hovermode="x unified",
         font=dict(color="black", size=14),
-        title=dict(font=dict(color="black", size=22), x=0.02, xanchor="left"),
         legend=dict(
             title=None,
             orientation="h",
             yanchor="bottom",
             y=1.02,
-            xanchor="right",
-            x=1,
+            xanchor="left",
+            x=0,
             font=dict(color="black", size=12),
         ),
         plot_bgcolor="white",
         paper_bgcolor="white",
-        margin=dict(l=20, r=20, t=80, b=20),
+        margin=dict(l=20, r=20, t=80 if resolved_title else 24, b=20),
         hoverlabel=dict(
             bgcolor="white",
             bordercolor="#333333",
             font=dict(color="black", size=13),
         ),
     )
+    if resolved_title:
+        fig.update_layout(title=dict(text=resolved_title, font=dict(color="black", size=22), x=0.02, xanchor="left"))
+    else:
+        fig.update_layout(title=None)
     fig.update_xaxes(
         showgrid=True,
         gridcolor="#D9D9D9",
@@ -182,8 +186,8 @@ def build_dual_axis_chart(
             orientation="h",
             yanchor="bottom",
             y=1.02,
-            xanchor="right",
-            x=1,
+            xanchor="left",
+            x=0,
             font=dict(color="black", size=12),
         ),
         plot_bgcolor="white",

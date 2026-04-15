@@ -38,27 +38,34 @@ def authenticate_ceic() -> None:
     )
 
 
-@st.cache_data(ttl=3600)
+@st.cache_resource(show_spinner="Running")
+def ensure_ceic_session() -> None:
+    authenticate_ceic()
+
+
+@st.cache_data(ttl=3600, show_spinner="Running")
 def fetch_series(
     series_id: str,
     label: str = "",
     unit: str = "",
     frequency: str = "",
 ) -> tuple[pd.DataFrame, dict[str, str]]:
-    authenticate_ceic()
+    ensure_ceic_session()
 
-    meta_result = Ceic.series_metadata(str(series_id))
     data_result = Ceic.series_data(str(series_id))
 
     resolved_label = label or f"Series {series_id}"
     resolved_unit = unit
     resolved_frequency = frequency
 
-    if hasattr(meta_result, "data") and meta_result.data:
-        metadata = meta_result.data[0].metadata
-        resolved_label = label or _extract_name(getattr(metadata, "name", None)) or resolved_label
-        resolved_unit = unit or _extract_name(getattr(metadata, "unit", None))
-        resolved_frequency = frequency or _extract_name(getattr(metadata, "frequency", None))
+    needs_metadata = not (label and unit and frequency)
+    if needs_metadata:
+        meta_result = Ceic.series_metadata(str(series_id))
+        if hasattr(meta_result, "data") and meta_result.data:
+            metadata = meta_result.data[0].metadata
+            resolved_label = label or _extract_name(getattr(metadata, "name", None)) or resolved_label
+            resolved_unit = unit or _extract_name(getattr(metadata, "unit", None))
+            resolved_frequency = frequency or _extract_name(getattr(metadata, "frequency", None))
 
     freshness = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
