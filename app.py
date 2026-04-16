@@ -15,7 +15,7 @@ from src.series_config import SERIES_REGISTRY
 
 
 st.set_page_config(page_title="Dashboard", layout="wide")
-st.title("Energy Supply Linkages")
+st.title("Energy Dashboard")
 st.caption("Explore how upstream energy disruptions flow through products, sectors, and the indicators attached to them.")
 
 st.markdown(
@@ -433,7 +433,7 @@ def get_trade_recommendations(trade_df: pd.DataFrame) -> pd.DataFrame:
 def render_supply_linkages_view() -> None:
     selected_node_id = st.session_state.get("selected_dependency_node", ROOT_NODES[0])
 
-    with st.expander("Reference Mindmap", expanded=False):
+    with st.expander("Reference Flowchart", expanded=False):
         image_left, image_center, image_right = st.columns([0.12, 0.76, 0.12])
         with image_center:
             st.image("mindmap.png", use_container_width=True)
