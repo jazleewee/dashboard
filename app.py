@@ -7,6 +7,7 @@ import plotly.express as px
 import streamlit as st
 
 from src.charts import build_line_chart
+from src.ceic_client import probe_ceic_access
 from src.data_loader import load_series
 from src.dependency_config import DEPENDENCY_NODES, ROOT_NODES
 from src.motorist_client import load_fuel_price_trend
@@ -487,6 +488,23 @@ def render_supply_linkages_view() -> None:
     st.markdown(f"## Indicators for {selected_node['label']}")
 
     ceic_series_ids = get_matching_ceic_series_ids(selected_node_id)
+    if ceic_series_ids:
+        with st.expander("CEIC Diagnostics", expanded=False):
+            primary_series_id = ceic_series_ids[0]
+            primary_series_label = SERIES_REGISTRY.get(primary_series_id, {}).get("label", primary_series_id)
+            ceic_probe = probe_ceic_access(
+                SERIES_REGISTRY.get(primary_series_id, {}).get("source_key", primary_series_id),
+                primary_series_label,
+            )
+            st.write(f"Probe series: `{primary_series_label}`")
+            st.write(f"Status: `{ceic_probe['status']}`")
+            if ceic_probe["status"] == "ok":
+                st.success(ceic_probe["message"])
+            elif ceic_probe["status"] == "missing_credentials":
+                st.error(ceic_probe["message"])
+            else:
+                st.warning(ceic_probe["message"])
+
     ceic_df, ceic_errors = build_ceic_dataframe(ceic_series_ids)
 
     google_df = pd.DataFrame()

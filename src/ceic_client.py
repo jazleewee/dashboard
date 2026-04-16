@@ -73,6 +73,42 @@ def _format_ceic_error(label: str, series_id: str, exc: Exception, *, during: st
     return f"{subject}: unable to load CEIC data. {raw_message}"
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def probe_ceic_access(series_id: str, label: str = "") -> dict[str, str]:
+    username = _read_secret("CEIC_USERNAME", "CEIC_EMAIL")
+    password = _read_secret("CEIC_PASSWORD")
+
+    if not username or not password:
+        return {
+            "status": "missing_credentials",
+            "message": (
+                "CEIC secrets are missing in this environment. Add CEIC_USERNAME "
+                "(or CEIC_EMAIL) and CEIC_PASSWORD to Streamlit secrets."
+            ),
+        }
+
+    try:
+        ensure_ceic_session()
+    except Exception as exc:
+        return {
+            "status": "login_error",
+            "message": str(exc),
+        }
+
+    try:
+        Ceic.series_data(str(series_id))
+    except Exception as exc:
+        return {
+            "status": "series_error",
+            "message": _format_ceic_error(label or f"Series {series_id}", series_id, exc, during="data"),
+        }
+
+    return {
+        "status": "ok",
+        "message": f"CEIC login succeeded and series {series_id} is reachable from this environment.",
+    }
+
+
 @st.cache_data(ttl=3600, show_spinner="Running")
 def fetch_series(
     series_id: str,
